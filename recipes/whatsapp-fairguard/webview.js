@@ -98,9 +98,12 @@ module.exports = Ferdium => {
 
   Ferdium.injectCSS(_path.default.join(__dirname, 'badge.css'));
 
-  window.addEventListener('DOMContentLoaded', () => {
-    if (globalThis.FairGuardSettings) {
-      globalThis.FairGuardSettings.mount();
-    }
-  });
+  const mountFairGuard = () => {
+    if (globalThis.FairGuardSettings) globalThis.FairGuardSettings.mount();
+  };
+  if (document.body) {
+    mountFairGuard();
+  } else {
+    window.addEventListener('DOMContentLoaded', mountFairGuard, { once: true });
+  }
 };

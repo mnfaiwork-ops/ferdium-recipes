@@ -21,6 +21,13 @@
   var GAYA = 'fg-style';
 
   var terpasang = false;
+  // Guard khusus listener. `terpasang` di-reset saat re-init modul (DOM tetap
+  // ada), tapi listener nempel di `document` yang siklus hidupnya beda. Dua
+  // guard terpisah: DOM (elemen gear) jadi sumber kebenaran saat reload,
+  // sementara boolean ini menjaga listener cuma dipasang sekali per instance
+  // modul ini. Tanpa ini, kalau modul pernah ke-evict dari cache, listener
+  // numpuk diam-diam.
+  var pendengarTerpasang = false;
   var timerStatus = null;
 
   function bacaSetelanAwal() {
@@ -190,6 +197,10 @@
   function mount() {
     var dokumen = document;
 
+    // Body belum ada: jangan lanjut (appendChild bakal throw). Aman kalau
+    // mount() kepanggil terlalu dini.
+    if (!dokumen.body) return;
+
     // Idempoten: kalau tombolnya udah ada, jangan bikin lagi.
     if (terpasang || dokumen.getElementById(GEAR)) {
       terpasang = true;
@@ -239,16 +250,21 @@
     dokumen.body.appendChild(panel);
 
     // Klik luar panel nutup. Gear nggak dihitung "luar" (dia toggle sendiri).
-    dokumen.addEventListener('click', function (ev) {
-      if (!panelTerbuka(dokumen)) return;
-      var target = ev.target;
-      if (panel.contains(target) || gear.contains(target)) return;
-      tutup();
-    });
+    // Cuma dipasang sekali per instance modul (lihat pendengarTerpasang).
+    if (!pendengarTerpasang) {
+      pendengarTerpasang = true;
 
-    dokumen.addEventListener('keydown', function (ev) {
-      if (ev.key === 'Escape') tutup();
-    });
+      dokumen.addEventListener('click', function (ev) {
+        if (!panelTerbuka(dokumen)) return;
+        var target = ev.target;
+        if (panel.contains(target) || gear.contains(target)) return;
+        tutup();
+      });
+
+      dokumen.addEventListener('keydown', function (ev) {
+        if (ev.key === 'Escape') tutup();
+      });
+    }
 
     terpasang = true;
   }
