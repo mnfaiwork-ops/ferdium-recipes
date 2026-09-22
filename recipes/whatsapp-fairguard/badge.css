@@ -1,0 +1,223 @@
+/* FairGuard badge — overlay coach untuk WhatsApp Web.
+   Statis: tanpa framework, tanpa gambar, tanpa web font.
+   Semua state dibedain 4 cara: warna, lebar rel, pola rel, bentuk ikon —
+   biar tetap kebaca buat yang buta warna merah-ijo.
+
+   Elemennya dicari lewat id #fairguard-badge, tapi digayain lewat class
+   .fg-badge. Id dipakai supaya render() nggak nyangkut ke elemen WhatsApp. */
+
+.fg-badge {
+  /* Di atas area pesan, nggak nyentuh kontrol WhatsApp. Dulu kanan bawah,
+     ketiban tombol kirim. 72px = di bawah header chat. Kalau WA ganti tinggi
+     header, angka ini doang yang diubah. */
+  position: fixed;
+  top: 72px;
+  right: 18px;
+  z-index: 2147483000;
+
+  box-sizing: border-box;
+  display: flex;
+  overflow: hidden;
+  width: 200px;
+  max-width: 320px;
+  border-radius: 11px;
+
+  /* bodi gelap pekat = bawa kontrasnya sendiri, aman di tema terang & gelap */
+  background: #0d1117;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.28), 0 4px 16px rgba(2, 6, 23, 0.34);
+
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  font-size: 11px;
+  line-height: 1.4;
+  color: #8a94a6;
+  cursor: pointer;
+  user-select: none;
+  -webkit-font-smoothing: antialiased;
+
+  transition: width 180ms cubic-bezier(.2,.8,.2,1),
+              border-radius 180ms cubic-bezier(.2,.8,.2,1),
+              background-color 220ms ease,
+              border-color 220ms ease;
+}
+
+/* ---------- rel status (kiri) ---------- */
+.fg-rail {
+  flex: none;
+  width: 4px;
+  background: #5b6478;
+  transition: width 180ms cubic-bezier(.2,.8,.2,1), background 220ms ease;
+}
+
+/* ---------- isi ---------- */
+.fg-body {
+  flex: 1;
+  min-width: 0;
+  padding: 9px 12px 10px 11px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+/* baris status di atas: angka besar dapat lebar penuh, nggak pernah kepotong */
+.fg-top { display: flex; align-items: center; gap: 5px; flex: none; }
+.fg-count { display: flex; align-items: baseline; gap: 7px; flex: none; }
+
+.fg-num {
+  font-family: ui-monospace, "SF Mono", "Cascadia Mono", "Segoe UI Mono", "Roboto Mono", monospace;
+  font-size: 21px;
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: -0.01em;
+  color: #f2f5fa;
+  white-space: nowrap;
+}
+.fg-num .fg-sep { color: #5b6478; font-weight: 500; }
+.fg-label { font-size: 11px; color: #8a94a6; white-space: nowrap; }
+
+.fg-top svg { display: block; }
+.fg-state-text {
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  color: #8a94a6;
+  white-space: nowrap;
+}
+
+.fg-line { font-size: 11px; color: #8a94a6; white-space: nowrap; }
+.fg-line b { font-family: ui-monospace, "SF Mono", "Segoe UI Mono", monospace; font-weight: 500; color: #c7cedb; }
+.fg-note { font-size: 11px; line-height: 1.45; color: #79839a; }
+
+/* Baris pola: deretan jeda yang udah kepakai. Angkanya monospace biar rata
+   dan polanya kebaca sekilas — ritme yang terlalu rata itu justru yang perlu
+   ketahuan. Dibikin lebih redup dari baris lain: ini bahan pertimbangan, bukan
+   peringatan, dan warnanya nggak pernah ikut status. */
+.fg-pola {
+  font-family: ui-monospace, "SF Mono", "Segoe UI Mono", monospace;
+  font-size: 10.5px;
+  color: #6f7890;
+  letter-spacing: .3px;
+}
+
+/* ---------- KALIBRASI ---------- */
+.fg-badge.is-kalibrasi .fg-rail {
+  background-image: repeating-linear-gradient(to bottom,
+    #8b93ff 0, #8b93ff 5px, transparent 5px, transparent 10px);
+  background-color: transparent;
+}
+.fg-badge.is-kalibrasi .fg-num { color: #5b6478; }
+.fg-badge.is-kalibrasi .fg-state-text { color: #8b93ff; }
+
+/* ---------- AMAN ---------- */
+.fg-badge.is-aman .fg-rail { background: #0fe7aa; }
+.fg-badge.is-aman .fg-state-text { color: #0fe7aa; }
+
+/* ---------- MEPET ---------- */
+.fg-badge.is-mepet { border-color: rgba(251, 202, 104, 0.34); }
+.fg-badge.is-mepet .fg-rail { width: 7px; background: #fbca68; }
+.fg-badge.is-mepet .fg-num { color: #fbca68; }
+.fg-badge.is-mepet .fg-num .fg-sep { color: #7a6a44; }
+.fg-badge.is-mepet .fg-state-text { color: #fbca68; }
+.fg-badge.is-mepet .fg-line.is-trigger b { color: #fbca68; }
+
+/* ---------- KELEWAT ---------- */
+.fg-badge.is-kelewat {
+  background: #140c0e;
+  border-color: rgba(255, 107, 107, 0.5);
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.3), 0 4px 18px rgba(80, 10, 10, 0.42);
+  color: #9a8a8a;
+}
+.fg-badge.is-kelewat .fg-rail {
+  width: 11px;
+  background: #ff6b6b;
+  /* takik gelap: penanda non-warna */
+  background-image: linear-gradient(to bottom, transparent 12%, #140c0e 12%, #140c0e 58%, transparent 58%,
+                    transparent 70%, #140c0e 70%, #140c0e 78%, transparent 78%);
+  background-repeat: no-repeat;
+  background-size: 1.8px 100%;
+  background-position: center;
+}
+.fg-badge.is-kelewat .fg-num { color: #ff8b8b; font-weight: 700; }
+.fg-badge.is-kelewat .fg-num .fg-sep { color: #8a5252; }
+.fg-badge.is-kelewat .fg-label,
+.fg-badge.is-kelewat .fg-line { color: #9a8a8a; }
+.fg-badge.is-kelewat .fg-line b { color: #d8c9c9; }
+.fg-badge.is-kelewat .fg-line.is-trigger b { color: #ff8b8b; }
+.fg-badge.is-kelewat .fg-state-text { color: #ff8b8b; }
+
+/* Kilau sekali jalan pas status berubah — nggak ada animasi berulang.
+   Badge ini nempel 8 jam sehari di pinggir layar orang lagi kerja. */
+@keyframes fg-flash {
+  from { box-shadow: 0 0 0 6px rgba(255, 255, 255, 0.14); }
+  to   { box-shadow: 0 0 0 0 rgba(255, 255, 255, 0); }
+}
+.fg-badge.fg-changed { animation: fg-flash 220ms ease-out 1; }
+
+/* ---------- CIUT ---------- */
+.fg-badge.is-ciut {
+  width: 28px;
+  height: 28px;
+  padding: 3px;
+  border-radius: 50%;
+  background: #0d1117;
+  border: none;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.16), 0 2px 10px rgba(2, 6, 23, 0.42);
+}
+.fg-badge.is-ciut .fg-rail,
+.fg-badge.is-ciut .fg-body { display: none; }
+.fg-badge.is-ciut .fg-dot { display: flex; }
+
+.fg-dot {
+  display: none;
+  box-sizing: border-box;
+  width: 100%;
+  height: 100%;
+  padding: 3px;
+  border-radius: 50%;
+  align-items: center;
+  justify-content: center;
+  /* --fg-arc diisi dari render(): sudut isi cincin (0-360deg) */
+  background: conic-gradient(var(--fg-accent, #5b6478) 0deg var(--fg-arc, 0deg),
+                             rgba(255, 255, 255, 0.14) var(--fg-arc, 0deg) 360deg);
+}
+.fg-dot-inner {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  background: #0d1117;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.fg-dot-inner svg { display: block; }
+
+.fg-badge.is-ciut.is-kalibrasi .fg-dot {
+  background: repeating-conic-gradient(#8b93ff 0deg 12deg, transparent 12deg 24deg);
+}
+.fg-badge.is-ciut.is-aman   { --fg-accent: #0fe7aa; }
+.fg-badge.is-ciut.is-mepet  { width: 30px; height: 30px; padding: 4px; --fg-accent: #fbca68;
+                              box-shadow: 0 0 0 1px rgba(251,202,104,.4), 0 2px 10px rgba(2,6,23,.42); }
+.fg-badge.is-ciut.is-kelewat {
+  width: 32px; height: 32px; padding: 0;
+  background: #ff6b6b;
+  box-shadow: 0 0 0 1px rgba(0,0,0,.3), 0 0 0 4px rgba(255,107,107,.16), 0 2px 10px rgba(80,10,10,.42);
+}
+.fg-badge.is-ciut.is-kelewat .fg-dot { background: none; padding: 0; }
+.fg-badge.is-ciut.is-kelewat .fg-dot-inner { background: none; }
+
+@media (prefers-reduced-motion: reduce) {
+  .fg-badge, .fg-rail { transition: none; }
+  .fg-badge.fg-changed { animation: none; }
+}
+
+/* SEMENTARA: baris diagnosa observer. Ditaruh di dalam .fg-body supaya ikut
+   ilang pas badge diciutin. Dibuang bareng kode DIAG di content.js. */
+.fg-diag {
+  margin-top: 6px;
+  padding-top: 5px;
+  border-top: 1px solid rgba(255, 255, 255, .18);
+  font: 10px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace;
+  color: #79839a;
+  letter-spacing: .2px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}

@@ -3,6 +3,7 @@
   "name": "WhatsApp (FairGuard)",
   "version": "1.0.0",
   "license": "MIT",
+  "repository": "https://github.com/mnfaiwork-ops/fairguard-desktop",
   "config": {
     "serviceURL": "https://web.whatsapp.com",
     "hasNotificationSound": true,
