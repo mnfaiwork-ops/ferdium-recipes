@@ -68,6 +68,7 @@ module.exports = Ferdium => {
   const loopFunc = () => {
     getMessages();
     getActiveDialogTitle();
+    if (globalThis.FairGuardGlue) globalThis.FairGuardGlue.gambar();
   };
 
   window.addEventListener('beforeunload', async () => {
@@ -85,4 +86,21 @@ module.exports = Ferdium => {
   Ferdium.loop(loopFunc);
 
   Ferdium.injectCSS(_path.default.join(__dirname, 'service.css'));
+
+  // --- FairGuard: append-only init ---
+  require('./fairguard/rules.js');
+  require('./fairguard/hash.js');
+  require('./fairguard/counter.js');
+  require('./fairguard/wa-dom.js');
+  require('./fairguard/badge.js');
+  require('./fairguard/glue.js');
+  require('./fairguard/settings-panel.js');
+
+  Ferdium.injectCSS(_path.default.join(__dirname, 'badge.css'));
+
+  window.addEventListener('DOMContentLoaded', () => {
+    if (globalThis.FairGuardSettings) {
+      globalThis.FairGuardSettings.mount();
+    }
+  });
 };
