@@ -1,0 +1,11 @@
+{
+  "id": "whatsapp-fairguard",
+  "name": "WhatsApp (FairGuard)",
+  "version": "1.0.0",
+  "license": "MIT",
+  "config": {
+    "serviceURL": "https://web.whatsapp.com",
+    "hasNotificationSound": true,
+    "hasIndirectMessages": true
+  }
+}
