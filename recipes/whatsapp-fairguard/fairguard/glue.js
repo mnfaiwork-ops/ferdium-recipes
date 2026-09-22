@@ -10,6 +10,8 @@
   var D = globalThis.FairGuardWaDom;
   var H = globalThis.FairGuardHash;
 
+  var SETELAN_DEFAULT = { batasChatBaru: 15, jedaMinDetik: 30, diagnosa: false };
+
   var KUNCI = { state: 'fairguard.state', setelan: 'fairguard.setelan', salt: 'fairguard.salt' };
   function bacaKunci(k, dflt) {
     try { var raw = localStorage.getItem(KUNCI[k]); return raw ? JSON.parse(raw) : dflt; }
