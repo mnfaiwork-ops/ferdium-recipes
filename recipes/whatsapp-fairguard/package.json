@@ -1,7 +1,7 @@
 {
   "id": "whatsapp-fairguard",
   "name": "WhatsApp (FairGuard)",
-  "version": "1.0.1",
+  "version": "1.0.3",
   "license": "MIT",
   "repository": "https://github.com/mnfaiwork-ops/fairguard-desktop",
   "config": {

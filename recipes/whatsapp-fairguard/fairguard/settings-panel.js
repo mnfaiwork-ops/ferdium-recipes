@@ -5,14 +5,19 @@
 // jadi panel ini ditempel ke document.body.
 //
 // PENEMPATAN: sebelumnya gear + panel ini position:fixed di area chat, jadi
-// ngambang nutupin percakapan. Sekarang dipindah ke rail kiri WhatsApp (kolom
-// ikon Chat/Status/Channels/Community), nempel di bawahnya. Badge counter
-// (badge.js) TIDAK ikut pindah - dia tetap mengambang di kanan, itu memang
-// tempatnya.
+// ngambang nutupin percakapan. Sekarang rail kiri WhatsApp (kolom ikon
+// Chat/Status/Channels/Community) jadi TARGET: kalau ketemu, gear nempel di
+// bawahnya; kalau tidak, gear jatuh ke jalur cadangan `position:fixed` di tepi
+// kiri. Badge counter (badge.js) TIDAK ikut pindah - dia tetap mengambang di
+// kanan, itu memang tempatnya.
+//
+// CATATAN PENTING (diukur 2026-09-23): WhatsApp Web sekarang tidak lagi memakai
+// `role="navigation"` untuk kolom ikonnya, jadi `cariRail()` kemungkinan besar
+// selalu balik null dan jalur CADANGAN yang jalan. Jalur cadangan itu bukan
+// pelengkap - dia jalur utama dalam praktik. Lihat komentar di `SELEKTOR_RAIL`.
 //
 // Bahaya rail kiri: itu DOM milik WhatsApp, bisa dibongkar-ulang tiap render.
-// Karena itu rail jadi TARGET, bukan rumah: dipasang lewat MutationObserver,
-// dan kalau rail-nya masih belum ada kita jatuh balik ke fixed di tepi kiri.
+// Karena itu penempatan diulang lewat MutationObserver, bukan sekali di mount.
 //
 // Penting: `document` di sini punya WhatsApp, bukan document kosong. Makanya
 // semua id/class dikasih awalan `fg-` biar nggak ketiban CSS WhatsApp.
@@ -31,9 +36,15 @@
   var GAYA = 'fg-style';
 
   // Rail kiri WhatsApp Web. Nama class WhatsApp diacak tiap update, jadi
-  // pemilihnya berbasis PERAN, bukan class: kolom ikon itu satu-satunya
-  // elemen role="navigation" yang menganggur di kiri atas dan isinya tombol
-  // ikon. Kalau WhatsApp ganti struktur, ini satu-satunya baris yang dibetulin.
+  // pemilihnya berbasis PERAN, bukan class.
+  //
+  // PERINGATAN (terukur 2026-09-23): WhatsApp Web sekarang TIDAK lagi memakai
+  // `role="navigation"` untuk kolom ikonnya - diukur lewat CDP pada
+  // web.whatsapp.com, hasilnya 0 elemen (peran yang ada cuma button & img).
+  // Artinya selektor ini kemungkinan besar tidak pernah cocok, dan yang benar-
+  // benar menampilkan tombol adalah jalur cadangan `.is-ngolet` di
+  // `tempatkan()`. Jangan hapus jalur cadangan itu dengan asumsi rail ini
+  // selalu ketemu - justru jalur itu yang bikin tombolnya kelihatan.
   var SELEKTOR_RAIL = '[role="navigation"]';
 
   var terpasang = false;
@@ -78,7 +89,12 @@
       'font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;',
       '-webkit-font-smoothing:antialiased;}',
       '#fg-gear:hover{color:#f2f5fa;background:#161b22;}',
-      '#fg-gear.is-ngolet{position:fixed;top:72px;left:14px;z-index:2147483001;}',
+      // Jalur cadangan (dalam praktik: jalur UTAMA, karena cariRail() jarang
+      // ketemu - lihat catatan di SELEKTOR_RAIL). Ditaruh di kiri tapi DI LUAR
+      // kolom ikon WhatsApp: rail WA itu ~64px di tepi paling kiri, kalau tombol
+      // ditaruh di left:14px dia ketimbun rail dan tidak kelihatan sama sekali.
+      // 78px = persis di sebelah kanan rail, sejajar dengan panel setelan.
+      '#fg-gear.is-ngolet{position:fixed;top:72px;left:78px;z-index:2147483001;}',
 
       // --- Panel: mengambang di sebelah tombol, TAPI di luar area chat yang
       //     sempit. Panel butuh 280px, rail cuma ~64px, jadi panel nggak boleh
@@ -95,8 +111,9 @@
       'font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;',
       'font-size:13px;line-height:1.4;-webkit-font-smoothing:antialiased;}',
       // Panel yang nempel ke tepi kiri saat rail belum ada: geser ke kanan
-      // tombolnya, biar tidak saling tutup.
-      '#fg-gear.is-ngolet ~ .fg-panel{left:52px;top:84px;}',
+      // tombolnya, biar tidak saling tutup. Tombol sekarang di left:78px, jadi
+      // panel mulai di 112px (78 + 26 lebar tombol + 8 jarak).
+      '#fg-gear.is-ngolet ~ .fg-panel{left:112px;top:84px;}',
       '.fg-panel[hidden]{display:none;}',
       '.fg-panel-head{display:flex;align-items:baseline;gap:8px;margin:0 0 12px;}',
       '.fg-panel-head b{color:#f2f5fa;font-size:13.5px;font-weight:600;}',
@@ -271,23 +288,28 @@
     if (!gear || !panel) return;
 
     var rail = cariRail(dokumen);
-    var rumah = gear.parentNode;
 
     if (rail) {
       // Ke rail. Ditaruh di paling bawah kolom biar nggak nyempil di antara
       // ikon WhatsApp (Chat/Status/Channels) - itu jalur cepat CS.
-      if (rumah !== rail) {
-        rail.appendChild(gear);
-        gear.classList.remove('is-ngolet');
-      }
-    } else if (rumah !== dokumen.body) {
-      // Belum ada rail: nggolet di tepi kiri. Panel tetap satu induk dengan
-      // tombol supaya pemilih `#fg-gear.is-ngolet ~ .fg-panel` jalan.
-      dokumen.body.appendChild(gear);
-      dokumen.body.appendChild(panel);
+      if (gear.parentNode !== rail) rail.appendChild(gear);
+      gear.classList.remove('is-ngolet');
+    } else {
+      // Rail belum ada. TOMBOL HARUS PUNYA JALAN PULANG YANG TERLIHAT.
+      //
+      // Dulu di sini ada `else if (rumah !== dokumen.body)`, dan syarat itu
+      // salah: `mount()` memang nempel ke body duluan, jadi saat rail belum
+      // ketemu syaratnya SELALU false, blok ini dilewati, dan tombolnya
+      // ketinggalan sebagai anak body tanpa posisi - mengalir ke dasar
+      // dokumen, di luar layar, tanpa satu pun error. Yang dicek seharusnya
+      // bukan "induknya sudah body apa belum", tapi "posisinya sudah benar
+      // apa belum".
+      if (gear.parentNode !== dokumen.body) dokumen.body.appendChild(gear);
       gear.classList.add('is-ngolet');
     }
 
+    // Panel selalu ikut body: dia butuh lebar penuh (280px), sedangkan rail
+    // cuma ~64px. Kalau ikut ke rail, panelnya kepotong.
     if (panel.parentNode !== dokumen.body) dokumen.body.appendChild(panel);
   }
 
@@ -319,9 +341,15 @@
     pasangGaya(dokumen);
 
     // Idempoten: kalau tombolnya udah ada di DOM, jangan bikin lagi - cukup
-    // pastikan posisinya benar.
+    // pastikan posisinya benar. Panel juga dicek: mount() kedua pernah bikin
+    // panel KEDUA (id sama, dua elemen), karena jalur ini dulu cuma lihat
+    // tombol lalu `return` - sementara `buatPanel()` belum pernah jalan.
     if (dokumen.getElementById(GEAR)) {
       terpasang = true;
+      var panelAda = dokumen.getElementById(PANEL);
+      if (!panelAda) {
+        dokumen.body.appendChild(buatPanel(dokumen));
+      }
       tempatkan(dokumen);
       pantauRail(dokumen);
       return;
