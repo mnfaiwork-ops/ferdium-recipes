@@ -2,7 +2,17 @@
 //
 // Di ekstensi Chrome, setelan dibuka di halaman options.html terpisah. Di
 // Ferdium nggak ada halaman begitu: renderer-nya langsung DOM WhatsApp Web,
-// jadi panel ini ditempel ke document.body sebagai overlay sendiri.
+// jadi panel ini ditempel ke document.body.
+//
+// PENEMPATAN: sebelumnya gear + panel ini position:fixed di area chat, jadi
+// ngambang nutupin percakapan. Sekarang dipindah ke rail kiri WhatsApp (kolom
+// ikon Chat/Status/Channels/Community), nempel di bawahnya. Badge counter
+// (badge.js) TIDAK ikut pindah - dia tetap mengambang di kanan, itu memang
+// tempatnya.
+//
+// Bahaya rail kiri: itu DOM milik WhatsApp, bisa dibongkar-ulang tiap render.
+// Karena itu rail jadi TARGET, bukan rumah: dipasang lewat MutationObserver,
+// dan kalau rail-nya masih belum ada kita jatuh balik ke fixed di tepi kiri.
 //
 // Penting: `document` di sini punya WhatsApp, bukan document kosong. Makanya
 // semua id/class dikasih awalan `fg-` biar nggak ketiban CSS WhatsApp.
@@ -20,7 +30,15 @@
   var PANEL = 'fg-panel';
   var GAYA = 'fg-style';
 
+  // Rail kiri WhatsApp Web. Nama class WhatsApp diacak tiap update, jadi
+  // pemilihnya berbasis PERAN, bukan class: kolom ikon itu satu-satunya
+  // elemen role="navigation" yang menganggur di kiri atas dan isinya tombol
+  // ikon. Kalau WhatsApp ganti struktur, ini satu-satunya baris yang dibetulin.
+  var SELEKTOR_RAIL = '[role="navigation"]';
+
   var terpasang = false;
+  var rafTempel = null;
+  var observerRail = null;
   // Guard khusus listener. `terpasang` di-reset saat re-init modul (DOM tetap
   // ada), tapi listener nempel di `document` yang siklus hidupnya beda. Dua
   // guard terpisah: DOM (elemen gear) jadi sumber kebenaran saat reload,
@@ -46,21 +64,39 @@
     var gaya = dokumen.createElement('style');
     gaya.id = GAYA;
     gaya.textContent = [
-      '#fg-gear{position:fixed;top:72px;right:226px;z-index:2147483001;',
-      'width:26px;height:26px;padding:0;display:flex;align-items:center;',
-      'justify-content:center;border:1px solid rgba(255,255,255,.16);',
+      // --- Tombol: diam di rail kiri WhatsApp, bukan mengambang di chat ---
+      //
+      // Di dalam rail, tombolnya ikut lebar rail (kolom ikon). `position:relative`
+      // + `z-index` cuma buat jaga-jaga kalau WhatsApp membungkusnya dengan
+      // lapisan sendiri. Kalau rail belum ketemu, .is-ngolet narik dia ke tepi
+      // kiri layar - lihat penjelasan di konteks kelas itu di bawah.
+      '#fg-gear{position:relative;z-index:2;flex:none;box-sizing:border-box;',
+      'margin:6px 0 0;padding:0;width:26px;height:26px;display:flex;',
+      'align-items:center;justify-content:center;border:1px solid rgba(255,255,255,.16);',
       'border-radius:8px;background:#0d1117;color:#8a94a6;cursor:pointer;',
       'box-shadow:0 0 0 1px rgba(0,0,0,.28),0 2px 10px rgba(2,6,23,.34);',
       'font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;',
       '-webkit-font-smoothing:antialiased;}',
       '#fg-gear:hover{color:#f2f5fa;background:#161b22;}',
-      '.fg-panel{position:fixed;top:108px;right:226px;z-index:2147483002;',
-      'box-sizing:border-box;width:280px;max-width:calc(100% - 36px);',
+      '#fg-gear.is-ngolet{position:fixed;top:72px;left:14px;z-index:2147483001;}',
+
+      // --- Panel: mengambang di sebelah tombol, TAPI di luar area chat yang
+      //     sempit. Panel butuh 280px, rail cuma ~64px, jadi panel nggak boleh
+      //     dibatasi lebar rail - kecuali dia berakhir numpuk balik ke chat,
+      //     yang justru masalah lama. Jalan tengah: panel tetap `fixed` menempel
+      //     ke tepi kiri, berhenti di ruas rail sehingga tidak menutupi filter
+      //     chat, tapi juga tidak menyentuh jendela percakapan.
+      '.fg-panel{position:fixed;top:84px;left:78px;z-index:2147483002;',
+      'box-sizing:border-box;width:280px;max-width:calc(100vw - 96px);',
+      'max-height:calc(100vh - 120px);overflow:auto;',
       'padding:14px 15px 15px;border:1px solid rgba(255,255,255,.16);',
       'border-radius:11px;background:#0d1117;color:#8a94a6;',
       'box-shadow:0 0 0 1px rgba(0,0,0,.28),0 6px 22px rgba(2,6,23,.46);',
       'font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;',
       'font-size:13px;line-height:1.4;-webkit-font-smoothing:antialiased;}',
+      // Panel yang nempel ke tepi kiri saat rail belum ada: geser ke kanan
+      // tombolnya, biar tidak saling tutup.
+      '#fg-gear.is-ngolet ~ .fg-panel{left:52px;top:84px;}',
       '.fg-panel[hidden]{display:none;}',
       '.fg-panel-head{display:flex;align-items:baseline;gap:8px;margin:0 0 12px;}',
       '.fg-panel-head b{color:#f2f5fa;font-size:13.5px;font-weight:600;}',
@@ -125,8 +161,7 @@
 
     // Label & salinan disamain dengan options.html (versi ekstensi).
     panel.innerHTML =
-      '<div class="fg-panel-head"><b>FairGuard</b><span>setelan badge</span></div>' +
-      '<div class="fg-field">' +
+      '<div class="fg-panel-head"><b>FairGuard</b><span>setelan badge</span></div>' +      '<div class="fg-field">' +
         '<label for="fg-batas">Batas chat baru per hari</label>' +
         '<input id="fg-batas" class="fg-input" type="number" min="1" max="200" step="1">' +
         '<div class="fg-hint">Mepet mulai di 70% dari batas, kelewat di batas. ' +
@@ -175,11 +210,20 @@
     return !!panel && !panel.hidden;
   }
 
+  // aria-expanded mesti ikut state, bukan cuma dipasang sekali di mount:
+  // tombol ini di rail kiri, dan pembaca layar memakai status itu buat tahu
+  // panelnya lagi kebuka atau nggak.
+  function tandaiTombol(dokumen, terbuka) {
+    var gear = dokumen.getElementById(GEAR);
+    if (gear) gear.setAttribute('aria-expanded', terbuka ? 'true' : 'false');
+  }
+
   function buka() {
     var panel = document.getElementById(PANEL);
     if (!panel) return;
     isiLapangan(document);
     panel.hidden = false;
+    tandaiTombol(document, true);
     var batas = document.getElementById('fg-batas');
     if (batas && typeof batas.focus === 'function') batas.focus();
   }
@@ -187,11 +231,80 @@
   function tutup() {
     var panel = document.getElementById(PANEL);
     if (panel) panel.hidden = true;
+    tandaiTombol(document, false);
   }
 
   function toggle() {
     if (panelTerbuka(document)) tutup();
     else buka();
+  }
+
+  // --- Penempatan tombol: rail kiri WhatsApp, dengan mundur aman ---
+  //
+  // Rail itu DOM milik WhatsApp. WhatsApp membongkar-ulang layarnya tiap
+  // render; kalau kita langsung nempel dan WhatsApp membuang node-nya, tombol
+  // FairGuard hilang tanpa error. Karena itu:
+  //   1. `cariRail()` nyari kolom ikon kiri;
+  //   2. `tempatkan()` dipanggil tiap siklus render, bukan sekali;
+  //   3. kalau rail belum ada, tombolnya "nggolet" - `fixed` di tepi kiri,
+  //      masih kepakai walau sementara.
+  function cariRail(dokumen) {
+    try {
+      var kandidat = dokumen.querySelectorAll(SELEKTOR_RAIL);
+      for (var i = 0; i < kandidat.length; i++) {
+        var el = kandidat[i];
+        // Kolom ikon: sempit, di tepi kiri, ada tombol. Header chat juga
+        // role="navigation" di beberapa versi, jadi lebar & posisi dipakai
+        // buat misahin keduanya.
+        var r = el.getBoundingClientRect();
+        if (r.width > 0 && r.width <= 110 && r.left <= 8 && r.height > 200) {
+          return el;
+        }
+      }
+    } catch (e) { /* DOM WhatsApp belum siap; dianggap belum ketemu */ }
+    return null;
+  }
+
+  function tempatkan(dokumen) {
+    var gear = dokumen.getElementById(GEAR);
+    var panel = dokumen.getElementById(PANEL);
+    if (!gear || !panel) return;
+
+    var rail = cariRail(dokumen);
+    var rumah = gear.parentNode;
+
+    if (rail) {
+      // Ke rail. Ditaruh di paling bawah kolom biar nggak nyempil di antara
+      // ikon WhatsApp (Chat/Status/Channels) - itu jalur cepat CS.
+      if (rumah !== rail) {
+        rail.appendChild(gear);
+        gear.classList.remove('is-ngolet');
+      }
+    } else if (rumah !== dokumen.body) {
+      // Belum ada rail: nggolet di tepi kiri. Panel tetap satu induk dengan
+      // tombol supaya pemilih `#fg-gear.is-ngolet ~ .fg-panel` jalan.
+      dokumen.body.appendChild(gear);
+      dokumen.body.appendChild(panel);
+      gear.classList.add('is-ngolet');
+    }
+
+    if (panel.parentNode !== dokumen.body) dokumen.body.appendChild(panel);
+  }
+
+  function pantauRail(dokumen) {
+    if (observerRail) return;
+    // Tiap perubahan DOM dijadwalkan sekali per frame: observer WhatsApp
+    // nembak puluhan kali per detik waktu chat ramai, dan cariRail() itu
+    // querySelectorAll + getBoundingClientRect (reflow). Tanpa throttle,
+    // panel ini sendiri jadi sumber lag.
+    observerRail = new root.MutationObserver(function () {
+      if (rafTempel) return;
+      rafTempel = (root.requestAnimationFrame || function (fn) { return setTimeout(fn, 16); })(function () {
+        rafTempel = null;
+        tempatkan(dokumen);
+      });
+    });
+    observerRail.observe(dokumen.body, { childList: true, subtree: true });
   }
 
   function mount() {
@@ -201,13 +314,18 @@
     // mount() kepanggil terlalu dini.
     if (!dokumen.body) return;
 
-    // Idempoten: kalau tombolnya udah ada, jangan bikin lagi.
-    if (terpasang || dokumen.getElementById(GEAR)) {
+    // Gaya mesti ada walau tombolnya sudah terpasang (mis. setelah re-mount
+    // karena WhatsApp membongkar body). pasangGaya() idempoten.
+    pasangGaya(dokumen);
+
+    // Idempoten: kalau tombolnya udah ada di DOM, jangan bikin lagi - cukup
+    // pastikan posisinya benar.
+    if (dokumen.getElementById(GEAR)) {
       terpasang = true;
+      tempatkan(dokumen);
+      pantauRail(dokumen);
       return;
     }
-
-    pasangGaya(dokumen);
 
     var gear = dokumen.createElement('button');
     gear.id = GEAR;
@@ -215,6 +333,7 @@
     gear.title = 'FairGuard \u2014 setelan';
     gear.setAttribute('aria-label', 'Setelan FairGuard');
     gear.setAttribute('aria-haspopup', 'dialog');
+    gear.setAttribute('aria-expanded', 'false');
     gear.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" ' +
       'stroke="currentColor" stroke-width="2" stroke-linecap="round" ' +
       'stroke-linejoin="round" aria-hidden="true">' +
@@ -248,6 +367,8 @@
 
     dokumen.body.appendChild(gear);
     dokumen.body.appendChild(panel);
+    tempatkan(dokumen);
+    pantauRail(dokumen);
 
     // Klik luar panel nutup. Gear nggak dihitung "luar" (dia toggle sendiri).
     // Cuma dipasang sekali per instance modul (lihat pendengarTerpasang).
